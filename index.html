@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
-  <title>Drive Mad ULTRA – Campaign + Store + Endless + Editor + Daily</title>
+  <title>Drive Mad ULTRA – Campaign + Store + Daily + Editor</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -74,7 +74,10 @@
           <div id="touchControls">
             <button id="btnLeft" class="circle-btn">⟵</button>
             <button id="btnRight" class="circle-btn">⟶</button>
-            <button id="btnNitro" class="circle-btn nitro">⚡</button>
+            <div class="touch-right-group">
+              <button id="btnJump" class="circle-btn jump">⤴</button>
+              <button id="btnNitro" class="circle-btn nitro">⚡</button>
+            </div>
           </div>
 
           <!-- MENU PANEL -->
@@ -84,6 +87,7 @@
               <p class="muted">
                 Campaign có sao & unlock level, Store mua skin bằng Wallet coins, Daily Endless + Daily Challenge/Quest theo seed mỗi ngày,
                 Editor tạo custom level lưu ngay trong trình duyệt, Local Leaderboard lưu trực tiếp trên máy.
+                <br/>Bản này đã thêm <b>Jump</b> để nhảy qua chướng ngại vật, độ khó dễ làm quen hơn.
               </p>
 
               <div class="grid-2">
@@ -92,6 +96,7 @@
                   <ul class="panel-list">
                     <li>Trái/Phải: A/D hoặc ⟵/⟶</li>
                     <li>Nitro: Shift hoặc nút ⚡ (mobile)</li>
+                    <li><b>Jump:</b> Space / W / ⟰ hoặc nút ⤴ (mobile)</li>
                     <li>Pause: P • Restart: R</li>
                     <li>Replay Best/Last để xem lại (Best có ghost)</li>
                     <li>Fullscreen: nút ⛶</li>
@@ -118,7 +123,7 @@
 
               <div class="hint">
                 Store: Coins nhặt trong run sẽ cộng vào Wallet khi kết thúc run (win/lose).<br/>
-                Campaign: cần ít nhất 1★ để mở level kế tiếp.<br/>
+                Campaign: cần ít nhất 1★ để mở level kế tiếp. Các level đầu đã được làm dễ hơn để bạn có thể thắng được.<br/>
                 Daily: xem Daily Challenge, Quest & Local Leaderboard tại Stats & Achievements → Daily.
               </div>
             </div>
@@ -364,7 +369,7 @@
   </main>
 
   <footer class="footer">
-    <span>Drive Mad ULTRA • Campaign • Store • Daily Endless + Daily Challenge/Quest • Editor • Achievements • Local Leaderboard</span>
+    <span>Drive Mad ULTRA • Campaign • Store • Daily Endless + Daily Challenge/Quest • Editor • Achievements • Local Leaderboard • Jump</span>
   </footer>
 
 </div>

@@ -128,6 +128,13 @@ body {
   background: radial-gradient(circle at 30% 20%, #ffd54f, #ff9800);
   color: #2b1700;
 }
+.circle-btn.jump {
+  background: radial-gradient(circle at 30% 20%, #b39ddb, #7e57c2);
+}
+.touch-right-group {
+  display: flex;
+  gap: 8px;
+}
 
 /* PANELS */
 .panel {

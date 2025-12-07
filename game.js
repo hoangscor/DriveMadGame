@@ -1,14 +1,17 @@
 /* ==========================================================
-   DRIVE MAD ULTRA (Campaign + Store + Daily + Editor + Daily System)
-   - Campaign: stars per level, unlock next level
-   - Wallet coins: earn from run, spend in Store to buy skins
-   - Replay: Best ghost + Last run replay
-   - Achievements + Stats persistence
-   - Level Editor + Custom Levels + import/export JSON
-   - Keyboard + Touch + optional Tilt steering
-   - NEW: Daily Challenge (modifiers theo ngày)
-          + Daily Quests (nhiệm vụ ngày, thưởng Wallet)
-          + Local Daily Leaderboard (lưu theo thiết bị)
+   DRIVE MAD ULTRA (v2 – Logic sạch + JUMP)
+   - GIỮ TOÀN BỘ CHỨC NĂNG CŨ:
+       • Campaign: sao, unlock level, best time, ghost
+       • Store + Wallet (coins từ run, bonus, Daily Quest)
+       • Daily Endless: seed theo ngày, modifiers, quests, local leaderboard
+       • Replay Best/Last
+       • Stats + Achievements
+       • Level Editor + Custom Levels
+       • Keyboard + Touch + Tilt
+   - CẢI TIẾN:
+       • Thêm nút JUMP (Space/W/ArrowUp hoặc nút ⤴)
+       • Logic nhảy dùng offset theo terrain (nhảy qua hazard)
+       • Độ khó đầu game nhẹ hơn, dễ thắng hơn
    ========================================================== */
 
 // ===== Canvas =====
@@ -50,6 +53,7 @@ const el = {
   btnLeft: document.getElementById("btnLeft"),
   btnRight: document.getElementById("btnRight"),
   btnNitro: document.getElementById("btnNitro"),
+  btnJump: document.getElementById("btnJump"),
 
   // Panels
   menuPanel: document.getElementById("menuPanel"),
@@ -147,15 +151,8 @@ function todayKeyStr() {
   const da = String(d.getDate()).padStart(2, "0");
   return `${y}${m}${da}`;
 }
-function shuffleWithRng(arr, rng) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
 
-// ===== Seeded RNG (LCG) =====
+// Seeded RNG
 function makeRng(seed) {
   let s = seed >>> 0;
   return function rnd() {
@@ -168,6 +165,13 @@ function dateSeedYYYYMMDD(d = new Date()) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const da = String(d.getDate()).padStart(2, "0");
   return Number(`${y}${m}${da}`) >>> 0;
+}
+function shuffleWithRng(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 // ===== Settings =====
@@ -188,7 +192,15 @@ let TURBO_ACCEL = 1800;
 const FRICTION = 0.985;
 const MAX_SPEED = 650;
 const MAX_REV_SPEED = -280;
-const ANGLE_CRASH_LIMIT = Math.PI * 0.7;
+const ANGLE_CRASH_LIMIT = Math.PI * 0.8; // cho phép xoay nhiều hơn một chút, đỡ chết oan
+
+// Jump (mới)
+const JUMP_SPEED = 620;
+const JUMP_GRAVITY = 1800;
+let grounded = true;
+let jumpOffset = 0;
+let jumpVel = 0;
+let jumpRequested = false;
 
 // ===== Camera =====
 let camX = 0, camY = 0;
@@ -265,7 +277,7 @@ const achievementsDef = [
 ];
 const achState = {}; // id -> boolean
 
-// ===== Daily system (modifiers + quests + local leaderboard) =====
+// ===== Daily system =====
 const DAILY_MODS_BASE = {
   coinValueMul: 1,
   fuelDrainMul: 1,
@@ -352,11 +364,8 @@ const DAILY_QUEST_POOL = [
   }
 ];
 
-// Cấu trúc dailyConfig: thông tin hôm nay (modifiers + danh sách quest)
 let dailyConfig = null;
-// Cấu trúc dailyState: tiến độ + leaderboard (lưu localStorage)
 let dailyState = null;
-// Cấu hình đang áp dụng cho run hiện tại (chỉ Daily Endless)
 let activeDailyConfig = null;
 
 function generateDailyConfig(seed, dateStr) {
@@ -406,16 +415,13 @@ function initDailySystem() {
     };
   }
 
-  // đảm bảo quest state khớp với config hôm nay
   for (const q of dailyConfig.quests) {
     if (!dailyState.quests[q.id]) {
       dailyState.quests[q.id] = { progress: 0, completed: false, claimed: false };
     }
   }
   for (const id in dailyState.quests) {
-    if (!dailyConfig.quests.some(q => q.id === id)) {
-      delete dailyState.quests[id];
-    }
+    if (!dailyConfig.quests.some(q => q.id === id)) delete dailyState.quests[id];
   }
   if (!Array.isArray(dailyState.leaderboard)) dailyState.leaderboard = [];
 
@@ -426,7 +432,6 @@ function updateDailyOnRunEnd(ctx) {
   if (!dailyConfig || !dailyState) return;
   if (dailyState.date !== dailyConfig.dateStr) return;
 
-  // Update quests
   for (const q of dailyConfig.quests) {
     const st = dailyState.quests[q.id];
     if (!st || st.completed) continue;
@@ -442,14 +447,10 @@ function updateDailyOnRunEnd(ctx) {
         st.progress += ctx.coinsRun;
         break;
       case "daily_distance_best":
-        if (ctx.mode === "DAILY") {
-          st.progress = Math.max(st.progress, ctx.distanceRun);
-        }
+        if (ctx.mode === "DAILY") st.progress = Math.max(st.progress, ctx.distanceRun);
         break;
       case "score_single":
-        if (ctx.scoreRun >= q.target) {
-          st.progress = q.target;
-        }
+        if (ctx.scoreRun >= q.target) st.progress = q.target;
         break;
     }
 
@@ -463,7 +464,6 @@ function updateDailyOnRunEnd(ctx) {
     }
   }
 
-  // Update leaderboard (Daily Endless)
   if (ctx.mode === "DAILY") {
     if (!Array.isArray(dailyState.leaderboard)) dailyState.leaderboard = [];
     dailyState.leaderboard.push({
@@ -480,7 +480,7 @@ function updateDailyOnRunEnd(ctx) {
 }
 
 function renderDailyUI() {
-  if (!el.dailyChallengeSummary || !el.dailyQuestList || !el.dailyLeaderboardInfo || !el.dailyLeaderboard) return;
+  if (!el.dailyChallengeSummary) return;
 
   if (!dailyConfig || !dailyState) {
     el.dailyChallengeSummary.textContent = "Daily Challenge chưa sẵn sàng.";
@@ -506,11 +506,8 @@ function renderDailyUI() {
     if (st.claimed) li.classList.add("claimed");
 
     let progressText;
-    if (q.type === "daily_distance_best") {
-      progressText = `${Math.floor(st.progress)} / ${q.target} m`;
-    } else {
-      progressText = `${Math.min(Math.floor(st.progress), q.target)} / ${q.target}`;
-    }
+    if (q.type === "daily_distance_best") progressText = `${Math.floor(st.progress)} / ${q.target} m`;
+    else progressText = `${Math.min(Math.floor(st.progress), q.target)} / ${q.target}`;
 
     let status = "";
     if (st.claimed) status = "Đã nhận thưởng";
@@ -545,10 +542,9 @@ function renderDailyUI() {
       const li = document.createElement("li");
       li.className = "leader-item";
       const d = new Date(r.ts || Date.now());
-      const tStr = d.toLocaleTimeString();
       li.innerHTML =
         `#${idx + 1} • <b>${Math.floor(r.distance)}m</b> • ` +
-        `${r.time.toFixed(1)}s • score ${r.score} • ${tStr}`;
+        `${r.time.toFixed(1)}s • score ${r.score} • ${d.toLocaleTimeString()}`;
       el.dailyLeaderboard.appendChild(li);
     });
   }
@@ -579,7 +575,6 @@ function loadPersisted() {
   for (const def of achievementsDef) achState[def.id] = !!a[def.id];
 
   ownedSkins = safeJSONParse(localStorage.getItem(STORAGE_KEYS.ownedSkins) || "{}", {});
-  // free defaults
   ownedSkins["yellow"] = true;
   ownedSkins["white"] = true;
 
@@ -612,7 +607,6 @@ function resetAllData() {
   localStorage.removeItem(STORAGE_KEYS.ownedSkins);
   localStorage.removeItem(STORAGE_KEYS.levelStars);
   localStorage.removeItem(STORAGE_KEYS.dailyState);
-  // remove ghosts/best times (a bunch)
   for (let i = 0; i < 200; i++) {
     localStorage.removeItem(STORAGE_KEYS.ghostPrefix + i);
     localStorage.removeItem(STORAGE_KEYS.bestTimePrefix + i);
@@ -625,13 +619,13 @@ const defaultLevels = [
   {
     id: "c1",
     name: "Hills 101",
-    startX: 80, finishX: 1120, parTime: 28, endless: false,
+    startX: 80, finishX: 1120, parTime: 30, endless: false,
     terrain: [
       {x: 0, y: 420}, {x: 260, y: 380}, {x: 420, y: 410},
       {x: 620, y: 360}, {x: 870, y: 400}, {x: 1120, y: 420}
     ],
     coins: [{x: 150, yOffset: -70}, {x: 350, yOffset: -90}, {x: 560, yOffset: -85}],
-    hazards: [{x: 720}, {x: 980}],
+    hazards: [{x: 720}], // ít hazard để dễ win
     fuelPacks: [{x: 420, yOffset: -35}],
     checkpoints: []
   },
@@ -644,7 +638,7 @@ const defaultLevels = [
       {x: 560, y: 360}, {x: 760, y: 430}, {x: 1250, y: 420}
     ],
     coins: [{x: 240, yOffset: -85}, {x: 430, yOffset: -70}, {x: 720, yOffset: -100}],
-    hazards: [{x: 610}, {x: 900}],
+    hazards: [{x: 610}],
     fuelPacks: [{x: 650, yOffset: -40}],
     checkpoints: [560]
   },
@@ -700,7 +694,6 @@ const defaultLevels = [
   }
 ];
 
-// Daily endless template
 function makeDailyEndlessLevel(seed) {
   return {
     id: "daily_" + String(seed),
@@ -728,7 +721,6 @@ function saveCustomLevels(levelsArr) {
   localStorage.setItem(STORAGE_KEYS.customLevels, JSON.stringify(levelsArr));
 }
 
-// sanitize level
 function sanitizeLevel(lv, isCustom) {
   if (!lv || typeof lv !== "object") return null;
   const out = {
@@ -778,7 +770,7 @@ let lives = 4;
 const MAX_LIVES = 4;
 let nitro = 1.0;
 let fuel = 1.0;
-let coinsRun = 0;       // coins in this run
+let coinsRun = 0;
 let scoreRun = 0;
 let distanceRun = 0;
 let lastCarX = 0;
@@ -820,10 +812,9 @@ function sampleTerrain(level, x, rngForEndless) {
       level.terrain.push({ x: last.x + dx, y: ny });
 
       const baseX = last.x + dx;
-      // objects
       if (rngForEndless() < 0.35) { level.coins.push({ x: baseX + 10, yOffset: -70 - rngForEndless() * 50 }); coinTaken.push(false); }
       if (rngForEndless() < 0.22) { level.fuelPacks.push({ x: baseX + 30, yOffset: -40 }); fuelTaken.push(false); }
-      if (rngForEndless() < 0.25) { level.hazards.push({ x: baseX + 20 }); }
+      if (rngForEndless() < 0.22) { level.hazards.push({ x: baseX + 20 }); }
     }
   }
 
@@ -852,7 +843,6 @@ function applyDifficulty() {
 
 // ===== Camera =====
 function updateCamera(dt) {
-  // look-ahead
   const look = clamp(car.vx * 0.35, -180, 220);
   const tx = car.x + look;
   const ty = car.y - 80;
@@ -984,7 +974,6 @@ function startLevel(level, setName, index = 0) {
   activeLevelIndex = index;
   activeLevelId = activeLevel.id;
 
-  // Daily modifiers chỉ áp dụng nếu là Daily Endless
   if (setName === "DAILY") activeDailyConfig = dailyConfig;
   else activeDailyConfig = null;
 
@@ -999,9 +988,15 @@ function startLevel(level, setName, index = 0) {
   coinsRun = 0;
   scoreRun = 0;
   distanceRun = 0;
+  lastCarX = 0;
   runFrames = [];
   replayFrames = null;
   replayT = 0;
+
+  grounded = true;
+  jumpOffset = 0;
+  jumpVel = 0;
+  jumpRequested = false;
 
   const g = sampleTerrain(activeLevel, activeLevel.startX, null);
   car.x = activeLevel.startX;
@@ -1010,8 +1005,6 @@ function startLevel(level, setName, index = 0) {
   car.vy = 0;
   car.angle = g.angle;
   car.angularVel = 0;
-
-  lastCarX = car.x;
 
   setModeLabel();
   setLevelLabel(levelTitleText());
@@ -1268,7 +1261,6 @@ function renderStats() {
     el.achievements.appendChild(item);
   }
 
-  // Daily UI (Challenge + Quests + Leaderboard)
   renderDailyUI();
 }
 
@@ -1298,12 +1290,18 @@ function checkAchievements(extraCtx = {}) {
 // ===== Input =====
 window.addEventListener("keydown", (e) => {
   keys[e.code] = true;
-  if (["ArrowLeft","ArrowRight","Space","KeyR","KeyP","ShiftLeft","ShiftRight"].includes(e.code)) e.preventDefault();
+  if (["ArrowLeft","ArrowRight","Space","KeyR","KeyP","ShiftLeft","ShiftRight","ArrowUp","KeyW"].includes(e.code)) {
+    e.preventDefault();
+  }
   if (e.code === "KeyR") restart();
   if (e.code === "KeyP") togglePause();
-  if (e.code === "Space" && gameState === "menu") startCampaignFromMenu();
+  if (e.code === "Space" || e.code === "KeyW" || e.code === "ArrowUp") {
+    jumpRequested = true;
+  }
 });
-window.addEventListener("keyup", (e) => keys[e.code] = false);
+window.addEventListener("keyup", (e) => {
+  keys[e.code] = false;
+});
 
 // Touch
 el.btnLeft.addEventListener("pointerdown", () => touchLeft = true);
@@ -1315,6 +1313,7 @@ el.btnRight.addEventListener("pointercancel", () => touchRight = false);
 el.btnNitro.addEventListener("pointerdown", () => touchNitro = true);
 el.btnNitro.addEventListener("pointerup", () => touchNitro = false);
 el.btnNitro.addEventListener("pointercancel", () => touchNitro = false);
+el.btnJump.addEventListener("pointerdown", () => { jumpRequested = true; });
 
 // Tilt
 window.addEventListener("deviceorientation", (e) => {
@@ -1362,6 +1361,8 @@ el.toggleTilt.addEventListener("change", () => {
   if (tiltEnabled) {
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
       DeviceOrientationEvent.requestPermission().catch(() => {}).then(() => {});
+    } else {
+      // không cần gì thêm
     }
   } else {
     tiltValue = 0;
@@ -1378,7 +1379,6 @@ el.btnNext.addEventListener("click", () => nextLevel());
 el.btnResetData.addEventListener("click", () => resetAllData());
 el.btnCloseStats.addEventListener("click", () => el.statsPanel.classList.add("hidden"));
 
-// Claim all completed daily quests
 el.btnClaimDailyQuests.addEventListener("click", () => {
   if (!dailyConfig || !dailyState) return;
   let gained = 0;
@@ -1414,7 +1414,6 @@ function openMenu() {
 
 function startCampaignFromMenu() {
   mode = "PLAY";
-  // pick first locked? always start from first, nhưng ưu tiên level cao nhất đã unlock
   let idx = 0;
   for (let i = 0; i < defaultLevels.length; i++) {
     if (isCampaignLevelUnlocked(i)) idx = i;
@@ -1468,7 +1467,6 @@ function nextLevel() {
     startLevel(list[idx], "CUSTOM", idx);
     return;
   }
-  // DAILY / TEST: quay về Daily mới
   startDailyFromMenu();
 }
 
@@ -1511,6 +1509,11 @@ function crash(reason = "CRASH") {
   camShake = 10;
   beep(220, 0.18, 0.18);
 
+  grounded = true;
+  jumpOffset = 0;
+  jumpVel = 0;
+  jumpRequested = false;
+
   if (lives > 0) {
     nitro = 1.0;
     fuel = 1.0;
@@ -1534,10 +1537,6 @@ function win() {
 // ===== Result + Campaign stars + Wallet coins =====
 function calcStarsForCampaign() {
   if (!activeLevel || activeLevel.endless) return 0;
-  // stars rule:
-  // 3★ : time <= par*0.8
-  // 2★ : time <= par*1.1
-  // 1★ : finish (any win)
   let stars = 1;
   if (levelTime <= activeLevel.parTime * 0.8) stars = 3;
   else if (levelTime <= activeLevel.parTime * 1.1) stars = 2;
@@ -1545,11 +1544,6 @@ function calcStarsForCampaign() {
 }
 
 function walletBonus(isWin, stars) {
-  // Bonus coins at end:
-  // Campaign: win => + (10 + stars*8)
-  // Lose => +0
-  // Daily: + floor(distance/250) capped
-  // Custom: win => +6
   if (!activeLevel) return 0;
   if (activeSet === "DEFAULT") {
     if (!isWin) return 0;
@@ -1573,19 +1567,15 @@ function showResult(isWin, title) {
   el.starRow.innerHTML = "";
 
   scoreRun = computeScore();
-
-  // save last run frames for "Replay Last"
   lastRunFrames = runFrames.slice();
 
   let stars = 0;
   if (isWin && !activeLevel.endless && activeSet === "DEFAULT") {
     stars = calcStarsForCampaign();
-    // update campaign stars for this level
     const prev = Number(levelStars[activeLevelId] || 0);
     levelStars[activeLevelId] = Math.max(prev, stars);
   }
 
-  // Render stars row
   for (let i = 0; i < 3; i++) {
     const s = document.createElement("span");
     s.className = "star" + ((i < stars) ? " filled" : "");
@@ -1593,7 +1583,6 @@ function showResult(isWin, title) {
     el.starRow.appendChild(s);
   }
 
-  // Best time & ghost (campaign only)
   if (isWin && !activeLevel.endless) {
     const best = loadBestTimeForLevel();
     let bestNow = best;
@@ -1612,27 +1601,22 @@ function showResult(isWin, title) {
     el.resultText.textContent = `Bạn đã thua ở: ${activeLevel.name} • Best: ${bestText}`;
   }
 
-  // Wallet coins: always add run coins + bonus
   const bonus = walletBonus(isWin, stars);
   const earned = coinsRun + bonus;
 
   el.resultExtra.textContent =
     `Run Coins: ${coinsRun} • Bonus: ${bonus} • Wallet +${earned} • Score: ${scoreRun}`;
 
-  // stats update
   stats.runs += 1;
   stats.distance += distanceRun;
   stats.runCoins += coinsRun;
-
   stats.wallet += earned;
 
   if (activeLevel.endless && mode === "DAILY") {
     stats.dailyBestDistance = Math.max(stats.dailyBestDistance, distanceRun);
   }
-
   stats.bestScore = Math.max(stats.bestScore, scoreRun);
 
-  // cập nhật hệ thống Daily (quests + leaderboard)
   updateDailyOnRunEnd({
     isWin,
     mode,
@@ -1644,7 +1628,6 @@ function showResult(isWin, title) {
   });
 
   savePersisted();
-
   setHudStarsFromLevel();
 
   checkAchievements({
@@ -1691,16 +1674,15 @@ function updateReplay(dt) {
   }
   let i = 0;
   while (i < replayFrames.length - 1 && replayFrames[i + 1].t < replayT) i++;
-  const f = replayFrames[i];
+  const f = replayFrames[Math.min(i, replayFrames.length - 1)];
   car.x = f.x; car.y = f.y; car.angle = f.angle;
   car.vx = 0; car.vy = 0;
 }
 
-// ===== Gameplay update =====
+// ===== Gameplay update – LOGIC MỚI + JUMP =====
 function updatePlaying(dt, rngForEndless) {
-  // distance tracking
-  const dx = Math.abs(car.x - lastCarX);
-  distanceRun += dx / 10;
+  const dxDist = Math.abs(car.x - lastCarX);
+  distanceRun += dxDist / 10;
   lastCarX = car.x;
 
   const dailyMods = (activeSet === "DAILY" && activeDailyConfig && activeDailyConfig.modifiers)
@@ -1711,9 +1693,9 @@ function updatePlaying(dt, rngForEndless) {
   const nitroUseMul = dailyMods ? (dailyMods.nitroUseMul || 1) : 1;
   const nitroRegenMul = dailyMods ? (dailyMods.nitroRegenMul || 1) : 1;
   const fuelMul = dailyMods ? (dailyMods.fuelDrainMul || 1) : 1;
-  const hazardRadius = 35 * (dailyMods ? (dailyMods.hazardRadiusMul || 1) : 1);
+  const hazardRadius = 32 * (dailyMods ? (dailyMods.hazardRadiusMul || 1) : 1); // hơi nhỏ hơn bản cũ cho dễ tránh
 
-  // input from keys/touch/tilt
+  // input
   const keyLeft = keys["ArrowLeft"] || keys["KeyA"] || touchLeft;
   const keyRight = keys["ArrowRight"] || keys["KeyD"] || touchRight;
   const nitroKey = keys["ShiftLeft"] || keys["ShiftRight"] || touchNitro;
@@ -1729,7 +1711,17 @@ function updatePlaying(dt, rngForEndless) {
 
   let accel = steer * BASE_ACCEL * accelMul;
 
-  // nitro consumption
+  // jump
+  let usedJump = false;
+  if (jumpRequested && grounded && fuel > 0.05) {
+    jumpVel = JUMP_SPEED;
+    grounded = false;
+    usedJump = true;
+    beep(700, 0.08, 0.12);
+  }
+  jumpRequested = false; // luôn reset, phải bấm lại khi muốn nhảy lần nữa
+
+  // nitro
   if (nitroKey && nitro > 0.05 && fuel > 0.05) {
     accel += (steer !== 0 ? Math.sign(steer) : 1) * TURBO_ACCEL * accelMul;
     nitro = Math.max(0, nitro - 0.65 * nitroUseMul * dt);
@@ -1737,7 +1729,7 @@ function updatePlaying(dt, rngForEndless) {
     nitro = Math.min(1, nitro + 0.22 * nitroRegenMul * dt);
   }
 
-  // fuel drain
+  // fuel
   const speedFactor = 0.3 + Math.abs(car.vx) / 900;
   fuel = Math.max(0, fuel - dt * 0.05 * speedFactor * fuelMul);
 
@@ -1755,22 +1747,43 @@ function updatePlaying(dt, rngForEndless) {
   car.vx *= FRICTION;
   car.vx = clamp(car.vx, MAX_REV_SPEED, MAX_SPEED);
 
-  // stick to terrain by sampling wheels
+  // terrain sample
   const leftX = car.x - car.wheelOffsetX;
   const rightX = car.x + car.wheelOffsetX;
   const lg = sampleTerrain(activeLevel, leftX, rngForEndless);
   const rg = sampleTerrain(activeLevel, rightX, rngForEndless);
+  const baseAngle = Math.atan2(rg.y - lg.y, rg.x - lg.x);
+  const baseY = Math.min(lg.y, rg.y) - car.wheelOffsetY;
 
-  const desiredAngle = Math.atan2(rg.y - lg.y, rg.x - lg.x);
-  const desiredY = Math.min(lg.y, rg.y) - car.wheelOffsetY;
+  // jump vertical offset
+  if (!grounded) {
+    jumpVel -= JUMP_GRAVITY * dt;
+    jumpOffset += jumpVel * dt;
+    if (jumpOffset <= 0) {
+      jumpOffset = 0;
+      jumpVel = 0;
+      grounded = true;
+    }
+  }
 
-  car.angle += (desiredAngle - car.angle) * 0.25;
-  car.y += (desiredY - car.y) * 0.3;
+  const targetY = baseY - jumpOffset;
+  car.y += (targetY - car.y) * 0.35;
 
-  // move
+  // rotation
+  if (grounded) {
+    const delta = baseAngle - car.angle;
+    car.angularVel += delta * 10 * dt;
+    car.angularVel *= 0.4;
+  } else {
+    // trên không: cho phép xoay nhẹ theo steer
+    car.angularVel += steer * 2.0 * dt;
+    car.angularVel *= 0.99;
+  }
+  car.angle += car.angularVel;
+
+  // move x
   car.x += car.vx * dt;
 
-  // clamp for non-endless
   const pts = activeLevel.terrain;
   if (!activeLevel.endless) {
     car.x = clamp(car.x, pts[0].x, pts[pts.length - 1].x);
@@ -1788,10 +1801,8 @@ function updatePlaying(dt, rngForEndless) {
     if (dist(car.x, car.y, c.x, cy) < 40) {
       coinTaken[i] = true;
       let add = 1;
-      const dailyModsLocal = dailyMods;
-      if (dailyModsLocal && dailyModsLocal.coinValueMul) {
-        add = Math.max(1, Math.round(add * dailyModsLocal.coinValueMul));
-      }
+      const dm = dailyMods;
+      if (dm && dm.coinValueMul) add = Math.max(1, Math.round(add * dm.coinValueMul));
       coinsRun += add;
       beep(1200, 0.08, 0.14);
     }
@@ -1843,7 +1854,7 @@ function updatePlaying(dt, rngForEndless) {
   // finish
   if (!activeLevel.endless && activeLevel.finishX != null) {
     const distFinish = Math.abs(activeLevel.finishX - car.x);
-    if (distFinish < 20 && Math.abs(car.vx) < 100) {
+    if (distFinish < 20 && Math.abs(car.vx) < 120) {
       win();
       return;
     }
@@ -1867,7 +1878,6 @@ function drawBackground() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
-  // mountains
   ctx.fillStyle = "#6ca4d9";
   ctx.beginPath();
   ctx.moveTo(-80, h * 0.78);
@@ -1883,7 +1893,6 @@ function drawBackground() {
   ctx.closePath();
   ctx.fill();
 
-  // clouds
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   const cloud = (x, y, cw, ch) => {
     ctx.beginPath();
@@ -1895,7 +1904,6 @@ function drawBackground() {
   cloud(410, 90, 150, 34);
   cloud(780, 55, 130, 30);
 
-  // vignette
   ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(0, 0, w, h);
 }
@@ -2151,7 +2159,7 @@ function drawMinimapDynamic() {
   mctx.fill();
 }
 
-// ===== Editor (giữ nguyên full) =====
+// ===== Editor (y như bản trước, giữ nguyên) =====
 function openEditor() {
   mode = "CUSTOM";
   setModeLabel();
@@ -2163,7 +2171,6 @@ function openEditor() {
   syncEditorFormFromState();
   editorWriteJson();
 
-  // preview
   activeLevel = sanitizeLevel(editorToLevelObject(false), true);
   activeSet = "TEST";
   activeLevelId = "editor_preview";
@@ -2171,6 +2178,15 @@ function openEditor() {
   coinTaken = activeLevel.coins.map(() => false);
   fuelTaken = activeLevel.fuelPacks.map(() => false);
   checkpointReached = null;
+
+  const g = sampleTerrain(activeLevel, activeLevel.startX, null);
+  car.x = activeLevel.startX;
+  car.y = g.y - 30;
+  car.vx = 0; car.vy = 0;
+  car.angle = g.angle; car.angularVel = 0;
+
+  grounded = true;
+  jumpOffset = 0; jumpVel = 0; jumpRequested = false;
 
   setLevelLabel("Editor Preview");
   setHudStarsFromLevel();
@@ -2342,7 +2358,6 @@ function editorEraseAt(wx, wy) {
     const y = sampleEditorTerrainY(x) - 20;
     if (near(x, y)) { editor.checkpoints.splice(i, 1); return true; }
   }
-  // finish: allow "move away" by setting value
   const fy = sampleEditorTerrainY(editor.finishX) - 40;
   if (near(editor.finishX, fy)) {
     editor.finishX = editor.startX + 1000;
@@ -2424,7 +2439,6 @@ canvas.addEventListener("pointermove", (e) => {
   let ny = editor.snap ? snapValue(wy) : wy;
   ny = clamp(ny, 260, 560);
 
-  // neighbor constraints
   const sorted = editor.terrain.slice().sort((a,b)=>a.x-b.x);
   const idx = sorted.indexOf(editor.draggingPointRef);
   const left = sorted[idx - 1];
@@ -2474,7 +2488,6 @@ function editorRenderOverlay() {
       ctx.restore();
     }
 
-    // terrain points
     for (const p of editor.terrain) {
       ctx.save();
       ctx.fillStyle = (p === editor.hoveredPointRef) ? "rgba(59,224,255,0.95)" : "rgba(70,255,122,0.85)";
@@ -2487,7 +2500,6 @@ function editorRenderOverlay() {
       ctx.restore();
     }
 
-    // start/finish markers
     const sy = sampleEditorTerrainY(editor.startX);
     ctx.fillStyle = "#46ff7a";
     ctx.fillRect(editor.startX - 3, sy - 40, 6, 40);
@@ -2580,18 +2592,15 @@ function init() {
   initDailySystem();
   applyDifficulty();
 
-  // settings UI
   el.difficultySelect.value = difficulty;
   el.toggleGhost.checked = ghostEnabled;
   el.toggleEngine.checked = engineSoundEnabled;
   el.toggleTilt.checked = tiltEnabled;
   el.tiltSensitivity.value = String(tiltSensitivity);
 
-  // levels list
   customLevels = loadCustomLevels();
   setTab("DEFAULT");
 
-  // menu background preview
   openMenu();
   activeLevel = sanitizeLevel(defaultLevels[0], false);
   activeSet = "DEFAULT";
@@ -2605,7 +2614,10 @@ function init() {
   car.x = activeLevel.startX;
   car.y = g.y - 30;
   car.vx = 0; car.vy = 0;
-  car.angle = g.angle;
+  car.angle = g.angle; car.angularVel = 0;
+
+  grounded = true;
+  jumpOffset = 0; jumpVel = 0; jumpRequested = false;
 
   snapCamera();
   drawMinimapBase();
