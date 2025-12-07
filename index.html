@@ -13,7 +13,7 @@
     <div class="header-left">
       <h1 class="game-title">Drive Mad ULTRA</h1>
       <p class="subtitle">
-        Campaign • Stars • BestTime • Wallet/Store • Daily Endless + Daily Challenge/Quest • Ghost/Replay • Achievements • Editor • Custom Levels • Local Leaderboard • Jump • Flip
+        Campaign • Stars • BestTime • Wallet/Store • Daily Endless + Daily Challenge/Quest • Ghost/Replay • Achievements • Editor • Custom Levels • Local Leaderboard • Jump • Flip • Upside 3s
       </p>
     </div>
     <div class="header-right">
@@ -66,6 +66,7 @@
               <button id="btnFullscreen" class="btn tiny secondary">⛶</button>
               <button id="btnSettings" class="btn tiny secondary">⚙</button>
               <button id="btnStats" class="btn tiny secondary">Stats</button>
+              <button id="btnHelp" class="btn tiny secondary">Help</button>
               <button id="btnSound" class="btn tiny secondary">SFX: ON</button>
             </div>
           </div>
@@ -92,7 +93,7 @@
 
               <div class="grid-2">
                 <div class="box">
-                  <h3>Điều khiển</h3>
+                  <h3>Tóm tắt điều khiển</h3>
                   <ul class="panel-list">
                     <li>Trái/Phải: A/D hoặc ⟵/⟶</li>
                     <li>Nitro: Shift hoặc nút ⚡ (mobile)</li>
@@ -105,11 +106,11 @@
                 </div>
 
                 <div class="box">
-                  <h3>Chế độ</h3>
+                  <h3>Các chế độ</h3>
                   <ul class="panel-list">
                     <li><b>PLAY (Campaign)</b>: có đích, chấm sao, unlock level tiếp theo.</li>
-                    <li><b>DAILY ENDLESS</b>: endless seed theo ngày, áp dụng Daily Modifiers + Quest + leaderboard.</li>
-                    <li><b>CUSTOM</b>: level tự tạo bằng Editor.</li>
+                    <li><b>DAILY ENDLESS</b>: endless seed theo ngày, áp dụng Daily Modifiers + Quest + Local leaderboard.</li>
+                    <li><b>CUSTOM</b>: level tự tạo bằng Editor, có thể chơi & lưu nhiều cái.</li>
                   </ul>
                 </div>
               </div>
@@ -203,6 +204,137 @@
 
               <div class="row">
                 <button id="btnCloseStore" class="btn secondary">Đóng</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- HELP PANEL -->
+          <div id="helpPanel" class="panel hidden">
+            <div class="panel-inner wide">
+              <h2>Hướng dẫn sử dụng & cách thắng</h2>
+              <p class="muted">
+                Bảng này dành cho người chơi mới hoặc quay lại sau 1 thời gian. Bao gồm: điều khiển, cách thắng,
+                giải thích các chế độ, Wallet/Store, Daily, Ghost/Replay, Editor, Achievements & Local Leaderboard.
+              </p>
+
+              <div class="grid-2">
+                <div class="box">
+                  <h3>1. Điều khiển (PC)</h3>
+                  <ul class="panel-list">
+                    <li><b>Trái / Phải:</b> A / D hoặc ← / → (lái & xoay xe).</li>
+                    <li><b>Jump:</b> Space / W / ↑ – nhảy.\</li>
+                    <li><b>Nitro:</b> Shift trái/phải – tăng tốc mạnh.</li>
+                    <li><b>Pause:</b> P • <b>Restart:</b> R.</li>
+                    <li><b>Fullscreen:</b> nút ⛶ ở góc HUD.</li>
+                  </ul>
+
+                  <h3>2. Điều khiển (Điện thoại)</h3>
+                  <ul class="panel-list">
+                    <li>Nút ⟵ / ⟶: lái trái/phải & điều chỉnh góc khi xe đang bay.</li>
+                    <li>Nút ⤴: nhảy.</li>
+                    <li>Nút ⚡: nitro.</li>
+                    <li>Có tuỳ chọn Tilt (nghiêng máy) trong Settings.</li>
+                  </ul>
+                </div>
+
+                <div class="box">
+                  <h3>3. Cách thắng & khi nào thua</h3>
+                  <ul class="panel-list">
+                    <li><b>Campaign:</b> chạy tới cột đích, dừng xe lại (tốc độ thấp) để thắng.</li>
+                    <li><b>Daily Endless:</b> không có đích – cố gắng đi xa nhất.</li>
+                    <li><b>Thua khi:</b>
+                      <ul>
+                        <li>Rơi khỏi map (rơi sâu xuống dưới).</li>
+                        <li>Đâm vào hazard (cọc đỏ).</li>
+                        <li>Hết xăng và xe dừng hẳn.</li>
+                        <li><b>Xe nằm ngửa (úp bụng lên trời) liên tục ≥ 3 giây
+                          khi chạm đường.</b></li>
+                      </ul>
+                    </li>
+                    <li>Có thể flip nhào lộn thoải mái trên không – chỉ cần không nằm ngửa quá lâu khi tiếp đất.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="box">
+                  <h3>4. Các chế độ chơi</h3>
+                  <ul class="panel-list">
+                    <li><b>PLAY (Campaign):</b> bộ level cố định, mỗi level có:
+                      <ul>
+                        <li>Par Time (thời gian chuẩn).</li>
+                        <li>Sao (★): 1–3 tuỳ theo thời gian hoàn thành.</li>
+                        <li>Hoàn thành ≥1★ → mở level tiếp theo.</li>
+                      </ul>
+                    </li>
+                    <li><b>DAILY ENDLESS:</b>
+                      <ul>
+                        <li>Map sinh ra theo seed ngày (YYYYMMDD).</li>
+                        <li>Daily Modifiers (buff/nerf) hiển thị trong Stats.</li>
+                        <li>Daily Quests: nhiệm vụ ngày, nhận thưởng vào Wallet.</li>
+                        <li>Local Leaderboard: lưu 10–20 run tốt nhất trên máy.</li>
+                      </ul>
+                    </li>
+                    <li><b>CUSTOM:</b> các level do bạn tạo trong Editor.</li>
+                  </ul>
+                </div>
+
+                <div class="box">
+                  <h3>5. Wallet, Coins, Store</h3>
+                  <ul class="panel-list">
+                    <li><b>Run Coins:</b> coins nhặt trong mỗi run (chỉ tính cho run đó).</li>
+                    <li><b>Wallet:</b> tổng coins tích luỹ dùng để mua skin trong Store.</li>
+                    <li>Sau mỗi run (thắng hoặc thua):
+                      <ul>
+                        <li>Run Coins + Bonus (tùy mode) → cộng vào Wallet.</li>
+                        <li>Thắng Campaign: bonus thêm theo số sao.</li>
+                        <li>Daily: bonus theo quãng đường.</li>
+                      </ul>
+                    </li>
+                    <li><b>Store:</b>
+                      <ul>
+                        <li>Mua skin xe vĩnh viễn (không mất khi restart game).</li>
+                        <li>Chọn skin đang dùng (Equip).</li>
+                      </ul>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="box">
+                  <h3>6. Ghost, Replay & Stats</h3>
+                  <ul class="panel-list">
+                    <li><b>Ghost:</b> run tốt nhất của level Campaign (khi thắng).</li>
+                    <li><b>Replay Best:</b> xem lại run tốt nhất (ghost).</li>
+                    <li><b>Replay Last:</b> xem lại run vừa chơi.</li>
+                    <li><b>Stats:</b> tổng quãng đường, số run, run coins, Wallet, crashes, best score, daily best distance.</li>
+                  </ul>
+
+                  <h3>7. Achievements</h3>
+                  <ul class="panel-list">
+                    <li>Mở Stats → Achievements để xem các mục tiêu.</li>
+                    <li>Ví dụ: First Win, Coin Hunter, Rich, Crash Dummy, High Score, Daily Runner, Creator, Campaigner.</li>
+                    <li>Mỗi Achievement mở khoá một lần và được lưu vĩnh viễn trong localStorage.</li>
+                  </ul>
+                </div>
+
+                <div class="box">
+                  <h3>8. Editor & Custom Levels</h3>
+                  <ul class="panel-list">
+                    <li><b>Terrain:</b> click thêm điểm, kéo để chỉnh, Shift+Click để xoá điểm.</li>
+                    <li><b>Tool Coin/Hazard/Fuel/Checkpoint/Finish:</b> chọn tool rồi click đặt.</li>
+                    <li><b>Erase:</b> click để xoá object gần vị trí click.</li>
+                    <li><b>Snap/Grid:</b> bật/tắt snap & lưới.</li>
+                    <li><b>Test:</b> chơi thử ngay trong Editor (không ảnh hưởng Campaign).</li>
+                    <li><b>Save:</b> lưu thành 1 Custom Level, xuất hiện trong tab Custom.</li>
+                    <li><b>Import/Export JSON:</b> copy/paste để chia sẻ level.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="row">
+                <button id="btnCloseHelp" class="btn full secondary">Đóng hướng dẫn</button>
               </div>
             </div>
           </div>
@@ -370,7 +502,7 @@
   </main>
 
   <footer class="footer">
-    <span>Drive Mad ULTRA • Campaign • Store • Daily Endless + Daily Challenge/Quest • Editor • Achievements • Local Leaderboard • Jump + Flip</span>
+    <span>Drive Mad ULTRA • Campaign • Store • Daily Endless + Daily Challenge/Quest • Editor • Achievements • Local Leaderboard • Jump + Flip • Upside 3s</span>
   </footer>
 
 </div>

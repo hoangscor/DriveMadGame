@@ -1,6 +1,6 @@
 /* ==========================================================
-   DRIVE MAD ULTRA (v3 – Jump + Flip + Lật ngửa 3s mới thua)
-   - GIỮ TOÀN BỘ CHỨC NĂNG:
+   DRIVE MAD ULTRA (v4 – Jump + Flip mềm hơn + Help + Upside 3s)
+   - Giữ toàn bộ hệ thống:
        • Campaign: sao, unlock level, best time, ghost
        • Store + Wallet (coins từ run, bonus, Daily Quest)
        • Daily Endless: seed theo ngày, modifiers, quests, local leaderboard
@@ -8,11 +8,13 @@
        • Stats + Achievements
        • Level Editor + Custom Levels
        • Keyboard + Touch + Tilt
-   - CẢI TIẾN VẬT LÝ:
-       • Thêm JUMP (đã có từ bản trước).
-       • Xe có thể nhào lộn theo quán tính khi ở trên không.
-       • Không còn crash ngay khi góc lớn.
-       • Chỉ thua khi: rơi khỏi map / đâm hazard / hết xăng / xe nằm ngửa ≥ 3s.
+   - Vật lý:
+       • Jump như cũ.
+       • Xe flip nhào lộn, nhưng xoay “mềm” hơn, bớt nhạy.
+       • Thua chỉ khi rơi khỏi map / đâm hazard / hết xăng / nằm ngửa ≥ 3s.
+   - UI:
+       • Thêm panel Hướng dẫn (Help).
+       • Tối ưu touch: ẩn nút cảm ứng khi chạy trên máy tính.
    ========================================================== */
 
 // ===== Canvas =====
@@ -48,6 +50,7 @@ const el = {
   btnFullscreen: document.getElementById("btnFullscreen"),
   btnSettings: document.getElementById("btnSettings"),
   btnStats: document.getElementById("btnStats"),
+  btnHelp: document.getElementById("btnHelp"),
   btnSound: document.getElementById("btnSound"),
 
   // Touch
@@ -61,6 +64,7 @@ const el = {
   levelPanel: document.getElementById("levelPanel"),
   settingsPanel: document.getElementById("settingsPanel"),
   storePanel: document.getElementById("storePanel"),
+  helpPanel: document.getElementById("helpPanel"),
   pausePanel: document.getElementById("pausePanel"),
   resultPanel: document.getElementById("resultPanel"),
   statsPanel: document.getElementById("statsPanel"),
@@ -92,6 +96,9 @@ const el = {
   storeWallet: document.getElementById("storeWallet"),
   storeGrid: document.getElementById("storeGrid"),
   btnCloseStore: document.getElementById("btnCloseStore"),
+
+  // Help
+  btnCloseHelp: document.getElementById("btnCloseHelp"),
 
   // Pause
   btnResume: document.getElementById("btnResume"),
@@ -143,8 +150,7 @@ const el = {
 // ===== Utilities =====
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function dist(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return Math.sqrt(dx*dx + dy*dy); }
-function safeJSONParse(s, fallback) { try { return JSON.parse(s); } catch { return fallback; }
-}
+function safeJSONParse(s, fallback) { try { return JSON.parse(s); } catch { return fallback; } }
 function nowMs() { return performance.now(); }
 function todayKeyStr() {
   const d = new Date();
@@ -199,7 +205,6 @@ let TURBO_ACCEL = 1800;
 const FRICTION = 0.985;
 const MAX_SPEED = 650;
 const MAX_REV_SPEED = -280;
-// ANGLE_CRASH_LIMIT không dùng nữa – crash dựa trên lật ngửa 3s
 
 // Jump
 const JUMP_SPEED = 620;
@@ -951,10 +956,10 @@ function loadGhostBestForLevel() {
 }
 function saveGhostBestForLevel(frames) { localStorage.setItem(levelStorageKeyGhost(), JSON.stringify(frames)); }
 function loadBestTimeForLevel() {
-  const t = Number(localStorage.getItem(levelStorageKeyBestTime()) || "0");
+  const t = Number(localStorage.getItem(STORAGE_KEYS.bestTimePrefix + activeLevelId) || "0");
   return Number.isFinite(t) && t > 0 ? t : null;
 }
-function saveBestTimeForLevel(t) { localStorage.setItem(levelStorageKeyBestTime(), String(t)); }
+function saveBestTimeForLevel(t) { localStorage.setItem(STORAGE_KEYS.bestTimePrefix + activeLevelId, String(t)); }
 
 // ===== Campaign unlock rule =====
 function isCampaignLevelUnlocked(index) {
@@ -1037,6 +1042,7 @@ function hideAllPanels() {
   el.levelPanel.classList.add("hidden");
   el.settingsPanel.classList.add("hidden");
   el.storePanel.classList.add("hidden");
+  el.helpPanel.classList.add("hidden");
   el.pausePanel.classList.add("hidden");
   el.resultPanel.classList.add("hidden");
   el.statsPanel.classList.add("hidden");
@@ -1347,6 +1353,7 @@ el.btnEditor.addEventListener("click", () => openEditor());
 el.btnFullscreen.addEventListener("click", () => toggleFullscreen());
 el.btnSettings.addEventListener("click", () => el.settingsPanel.classList.remove("hidden"));
 el.btnStats.addEventListener("click", () => { renderStats(); el.statsPanel.classList.remove("hidden"); });
+el.btnHelp.addEventListener("click", () => el.helpPanel.classList.remove("hidden"));
 
 el.btnSound.addEventListener("click", () => {
   soundEnabled = !soundEnabled;
@@ -1381,6 +1388,7 @@ el.toggleTilt.addEventListener("change", () => {
 el.tiltSensitivity.addEventListener("input", () => { tiltSensitivity = Number(el.tiltSensitivity.value) || 1.2; });
 
 el.btnCloseStore.addEventListener("click", () => el.storePanel.classList.add("hidden"));
+el.btnCloseHelp.addEventListener("click", () => el.helpPanel.classList.add("hidden"));
 
 el.btnResume.addEventListener("click", () => resume());
 el.btnRetry.addEventListener("click", () => { el.resultPanel.classList.add("hidden"); restart(); });
@@ -1691,7 +1699,7 @@ function updateReplay(dt) {
   car.vx = 0; car.vy = 0;
 }
 
-// ===== Gameplay update – Jump + Flip + Upside-down timer =====
+// ===== Gameplay update – Jump + Flip mềm hơn + Upside 3s =====
 function updatePlaying(dt, rngForEndless) {
   const dxDist = Math.abs(car.x - lastCarX);
   distanceRun += dxDist / 10;
@@ -1779,20 +1787,21 @@ function updatePlaying(dt, rngForEndless) {
   const targetY = baseY - jumpOffset;
   car.y += (targetY - car.y) * 0.35;
 
-  // rotation & flip
+  // rotation & flip – làm nhẹ hơn
   const diff = normalizeAngle(baseAngle - car.angle);
   if (grounded) {
-    // Bám vào slope, nhưng nếu chênh lệch quá lớn (gần lật ngửa) thì mô-men nhỏ
-    const alignFactor = 1 - Math.min(Math.abs(diff) / Math.PI, 1); // 1: gần cùng hướng, 0: ngược hướng
-    const strength = 8 * alignFactor; // nằm ngửa => strength ~ 0, xe không tự lật lại
+    const alignFactor = 1 - Math.min(Math.abs(diff) / Math.PI, 1); // càng gần hướng đường càng mạnh
+    const strength = 6 * alignFactor; // trước là 8 → giảm cho mềm
     car.angularVel += diff * strength * dt;
-    car.angularVel *= 0.5;
+    car.angularVel *= 0.45; // damping nhiều hơn (bớt giật)
   } else {
-    // Trên không: xoay theo steer + quán tính theo vận tốc
-    car.angularVel += steer * 2.4 * dt;
-    car.angularVel += (car.vx * 0.0008) * dt;
-    car.angularVel *= 0.99;
+    // trên không: giảm độ nhạy, vẫn cho flip
+    car.angularVel += steer * 1.5 * dt;              // trước ~2.4
+    car.angularVel += (car.vx * 0.00045) * dt;       // trước ~0.0008
+    car.angularVel *= 0.985;
   }
+  // giới hạn tốc độ xoay để không xoay quá điên
+  car.angularVel = clamp(car.angularVel, -3.0, 3.0);
   car.angle += car.angularVel;
 
   // move x
@@ -1859,7 +1868,7 @@ function updatePlaying(dt, rngForEndless) {
   const groundProximity = Math.abs(car.y - (baseY - jumpOffset));
   const nearGround = groundProximity < 16;
   const cosA = Math.cos(car.angle); // -1: ngửa, +1: đứng
-  const upside = nearGround && cosA < -0.2; // khoảng > ~100° so với thẳng đứng
+  const upside = nearGround && cosA < -0.2; // hơi thoáng, gật đầu nhưng không bị thua liền
   if (upside) {
     upsideTimer += dt;
     if (upsideTimer >= UPSIDE_THRESHOLD_SEC) {
@@ -2184,7 +2193,7 @@ function drawMinimapDynamic() {
   mctx.fill();
 }
 
-// ===== Editor (giữ nguyên logic) =====
+// ===== Editor (giữ logic cũ) =====
 function openEditor() {
   mode = "CUSTOM";
   setModeLabel();
@@ -2649,6 +2658,14 @@ function init() {
   snapCamera();
   drawMinimapBase();
   updateHud();
+
+  // Ẩn nút cảm ứng nếu không phải thiết bị cảm ứng
+  const tc = document.getElementById("touchControls");
+  const isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  if (tc) {
+    tc.style.display = isTouchDevice ? "flex" : "none";
+  }
+
   requestAnimationFrame(loop);
 }
 

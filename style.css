@@ -411,3 +411,14 @@ body {
   #hud-top { flex-direction: column; align-items: flex-start; gap: 6px; }
   .hud-right .hud-pill { display: none; }
 }
+
+/* Thêm chút tối ưu mobile nhỏ */
+@media (max-width: 600px) {
+  .circle-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+  }
+  .header { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .subtitle { font-size: 11px; }
+}
