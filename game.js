@@ -1,6 +1,6 @@
 /* ==========================================================
-   DRIVE MAD ULTRA (v2 – Logic sạch + JUMP)
-   - GIỮ TOÀN BỘ CHỨC NĂNG CŨ:
+   DRIVE MAD ULTRA (v3 – Jump + Flip + Lật ngửa 3s mới thua)
+   - GIỮ TOÀN BỘ CHỨC NĂNG:
        • Campaign: sao, unlock level, best time, ghost
        • Store + Wallet (coins từ run, bonus, Daily Quest)
        • Daily Endless: seed theo ngày, modifiers, quests, local leaderboard
@@ -8,10 +8,11 @@
        • Stats + Achievements
        • Level Editor + Custom Levels
        • Keyboard + Touch + Tilt
-   - CẢI TIẾN:
-       • Thêm nút JUMP (Space/W/ArrowUp hoặc nút ⤴)
-       • Logic nhảy dùng offset theo terrain (nhảy qua hazard)
-       • Độ khó đầu game nhẹ hơn, dễ thắng hơn
+   - CẢI TIẾN VẬT LÝ:
+       • Thêm JUMP (đã có từ bản trước).
+       • Xe có thể nhào lộn theo quán tính khi ở trên không.
+       • Không còn crash ngay khi góc lớn.
+       • Chỉ thua khi: rơi khỏi map / đâm hazard / hết xăng / xe nằm ngửa ≥ 3s.
    ========================================================== */
 
 // ===== Canvas =====
@@ -142,7 +143,8 @@ const el = {
 // ===== Utilities =====
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function dist(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return Math.sqrt(dx*dx + dy*dy); }
-function safeJSONParse(s, fallback) { try { return JSON.parse(s); } catch { return fallback; } }
+function safeJSONParse(s, fallback) { try { return JSON.parse(s); } catch { return fallback; }
+}
 function nowMs() { return performance.now(); }
 function todayKeyStr() {
   const d = new Date();
@@ -150,6 +152,11 @@ function todayKeyStr() {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const da = String(d.getDate()).padStart(2, "0");
   return `${y}${m}${da}`;
+}
+function normalizeAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
 }
 
 // Seeded RNG
@@ -192,15 +199,19 @@ let TURBO_ACCEL = 1800;
 const FRICTION = 0.985;
 const MAX_SPEED = 650;
 const MAX_REV_SPEED = -280;
-const ANGLE_CRASH_LIMIT = Math.PI * 0.8; // cho phép xoay nhiều hơn một chút, đỡ chết oan
+// ANGLE_CRASH_LIMIT không dùng nữa – crash dựa trên lật ngửa 3s
 
-// Jump (mới)
+// Jump
 const JUMP_SPEED = 620;
 const JUMP_GRAVITY = 1800;
 let grounded = true;
 let jumpOffset = 0;
 let jumpVel = 0;
 let jumpRequested = false;
+
+// Flip / upside-down timer
+let upsideTimer = 0;
+const UPSIDE_THRESHOLD_SEC = 3.0;
 
 // ===== Camera =====
 let camX = 0, camY = 0;
@@ -625,7 +636,7 @@ const defaultLevels = [
       {x: 620, y: 360}, {x: 870, y: 400}, {x: 1120, y: 420}
     ],
     coins: [{x: 150, yOffset: -70}, {x: 350, yOffset: -90}, {x: 560, yOffset: -85}],
-    hazards: [{x: 720}], // ít hazard để dễ win
+    hazards: [{x: 720}],
     fuelPacks: [{x: 420, yOffset: -35}],
     checkpoints: []
   },
@@ -997,6 +1008,7 @@ function startLevel(level, setName, index = 0) {
   jumpOffset = 0;
   jumpVel = 0;
   jumpRequested = false;
+  upsideTimer = 0;
 
   const g = sampleTerrain(activeLevel, activeLevel.startX, null);
   car.x = activeLevel.startX;
@@ -1361,8 +1373,6 @@ el.toggleTilt.addEventListener("change", () => {
   if (tiltEnabled) {
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
       DeviceOrientationEvent.requestPermission().catch(() => {}).then(() => {});
-    } else {
-      // không cần gì thêm
     }
   } else {
     tiltValue = 0;
@@ -1513,6 +1523,7 @@ function crash(reason = "CRASH") {
   jumpOffset = 0;
   jumpVel = 0;
   jumpRequested = false;
+  upsideTimer = 0;
 
   if (lives > 0) {
     nitro = 1.0;
@@ -1526,6 +1537,7 @@ function crash(reason = "CRASH") {
   }
 
   if (reason === "FUEL") showResult(false, "Hết xăng + hết mạng!");
+  else if (reason === "UPSIDE") showResult(false, "Xe lật ngửa quá lâu!");
   else showResult(false, "Hết mạng!");
 }
 
@@ -1679,7 +1691,7 @@ function updateReplay(dt) {
   car.vx = 0; car.vy = 0;
 }
 
-// ===== Gameplay update – LOGIC MỚI + JUMP =====
+// ===== Gameplay update – Jump + Flip + Upside-down timer =====
 function updatePlaying(dt, rngForEndless) {
   const dxDist = Math.abs(car.x - lastCarX);
   distanceRun += dxDist / 10;
@@ -1693,7 +1705,7 @@ function updatePlaying(dt, rngForEndless) {
   const nitroUseMul = dailyMods ? (dailyMods.nitroUseMul || 1) : 1;
   const nitroRegenMul = dailyMods ? (dailyMods.nitroRegenMul || 1) : 1;
   const fuelMul = dailyMods ? (dailyMods.fuelDrainMul || 1) : 1;
-  const hazardRadius = 32 * (dailyMods ? (dailyMods.hazardRadiusMul || 1) : 1); // hơi nhỏ hơn bản cũ cho dễ tránh
+  const hazardRadius = 32 * (dailyMods ? (dailyMods.hazardRadiusMul || 1) : 1);
 
   // input
   const keyLeft = keys["ArrowLeft"] || keys["KeyA"] || touchLeft;
@@ -1712,14 +1724,12 @@ function updatePlaying(dt, rngForEndless) {
   let accel = steer * BASE_ACCEL * accelMul;
 
   // jump
-  let usedJump = false;
   if (jumpRequested && grounded && fuel > 0.05) {
     jumpVel = JUMP_SPEED;
     grounded = false;
-    usedJump = true;
     beep(700, 0.08, 0.12);
   }
-  jumpRequested = false; // luôn reset, phải bấm lại khi muốn nhảy lần nữa
+  jumpRequested = false;
 
   // nitro
   if (nitroKey && nitro > 0.05 && fuel > 0.05) {
@@ -1769,14 +1779,18 @@ function updatePlaying(dt, rngForEndless) {
   const targetY = baseY - jumpOffset;
   car.y += (targetY - car.y) * 0.35;
 
-  // rotation
+  // rotation & flip
+  const diff = normalizeAngle(baseAngle - car.angle);
   if (grounded) {
-    const delta = baseAngle - car.angle;
-    car.angularVel += delta * 10 * dt;
-    car.angularVel *= 0.4;
+    // Bám vào slope, nhưng nếu chênh lệch quá lớn (gần lật ngửa) thì mô-men nhỏ
+    const alignFactor = 1 - Math.min(Math.abs(diff) / Math.PI, 1); // 1: gần cùng hướng, 0: ngược hướng
+    const strength = 8 * alignFactor; // nằm ngửa => strength ~ 0, xe không tự lật lại
+    car.angularVel += diff * strength * dt;
+    car.angularVel *= 0.5;
   } else {
-    // trên không: cho phép xoay nhẹ theo steer
-    car.angularVel += steer * 2.0 * dt;
+    // Trên không: xoay theo steer + quán tính theo vận tốc
+    car.angularVel += steer * 2.4 * dt;
+    car.angularVel += (car.vx * 0.0008) * dt;
     car.angularVel *= 0.99;
   }
   car.angle += car.angularVel;
@@ -1841,11 +1855,22 @@ function updatePlaying(dt, rngForEndless) {
     }
   }
 
-  // crash conditions
-  if (Math.abs(car.angle) > ANGLE_CRASH_LIMIT && Math.abs(car.vx) > 80) {
-    crash("CRASH");
-    return;
+  // upside-down timer (nằm ngửa ≥ 3s mới thua)
+  const groundProximity = Math.abs(car.y - (baseY - jumpOffset));
+  const nearGround = groundProximity < 16;
+  const cosA = Math.cos(car.angle); // -1: ngửa, +1: đứng
+  const upside = nearGround && cosA < -0.2; // khoảng > ~100° so với thẳng đứng
+  if (upside) {
+    upsideTimer += dt;
+    if (upsideTimer >= UPSIDE_THRESHOLD_SEC) {
+      crash("UPSIDE");
+      return;
+    }
+  } else {
+    upsideTimer = 0;
   }
+
+  // rơi khỏi map
   if (car.y > canvas.height + 160) {
     crash("CRASH");
     return;
@@ -2159,7 +2184,7 @@ function drawMinimapDynamic() {
   mctx.fill();
 }
 
-// ===== Editor (y như bản trước, giữ nguyên) =====
+// ===== Editor (giữ nguyên logic) =====
 function openEditor() {
   mode = "CUSTOM";
   setModeLabel();
@@ -2187,6 +2212,7 @@ function openEditor() {
 
   grounded = true;
   jumpOffset = 0; jumpVel = 0; jumpRequested = false;
+  upsideTimer = 0;
 
   setLevelLabel("Editor Preview");
   setHudStarsFromLevel();
@@ -2618,6 +2644,7 @@ function init() {
 
   grounded = true;
   jumpOffset = 0; jumpVel = 0; jumpRequested = false;
+  upsideTimer = 0;
 
   snapCamera();
   drawMinimapBase();
