@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+  <title>Drive Mad ULTRA – Campaign + Store + Endless + Editor + Daily</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="page">
+
+  <header class="header">
+    <div class="header-left">
+      <h1 class="game-title">Drive Mad ULTRA</h1>
+      <p class="subtitle">
+        Campaign • Stars • BestTime • Wallet/Store • Daily Endless + Daily Challenge/Quest • Ghost/Replay • Achievements • Editor • Custom Levels • Local Leaderboard
+      </p>
+    </div>
+    <div class="header-right">
+      <span class="status-dot"></span>
+      <span class="status-text">VS Code • Live Server</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="card">
+      <div class="card-header">
+        <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+        <span class="card-title">Drive Mad ULTRA (index.html)</span>
+      </div>
+
+      <div class="card-body">
+        <div id="game-wrapper">
+          <canvas id="gameCanvas" width="1280" height="720"></canvas>
+          <canvas id="minimapCanvas" width="280" height="64"></canvas>
+
+          <!-- HUD TOP -->
+          <div id="hud-top">
+            <div class="hud-left">
+              <button id="btnMenu" class="btn small secondary">Menu</button>
+              <button id="btnRestart" class="btn small">Restart (R)</button>
+              <button id="btnPause" class="btn small secondary">Pause (P)</button>
+              <button id="btnReplayBest" class="btn small secondary">Replay Best</button>
+              <button id="btnReplayLast" class="btn small secondary">Replay Last</button>
+              <button id="btnStore" class="btn small secondary">Store</button>
+              <button id="btnLevels" class="btn small secondary">Levels</button>
+              <button id="btnEditor" class="btn small secondary">Editor</button>
+            </div>
+
+            <div class="hud-center">
+              <span id="hudMode" class="pill">PLAY</span>
+              <span id="hudLevelName" class="pill alt">LEVEL</span>
+              <span id="hudStars" class="pill tiny alt">★☆☆</span>
+            </div>
+
+            <div class="hud-right">
+              <span class="hud-pill">Time: <span id="hudTime">0.0</span>s</span>
+              <span class="hud-pill">Speed: <span id="hudSpeed">0</span> km/h</span>
+              <span class="hud-pill">Lives: <span id="hudLives">4</span></span>
+              <span class="hud-pill">Nitro: <span id="hudNitro">100%</span></span>
+              <span class="hud-pill">Fuel: <span id="hudFuel">100%</span></span>
+              <span class="hud-pill">Run Coins: <span id="hudCoins">0</span></span>
+              <span class="hud-pill">Wallet: <span id="hudWallet">0</span></span>
+              <span class="hud-pill">Score: <span id="hudScore">0</span></span>
+
+              <button id="btnFullscreen" class="btn tiny secondary">⛶</button>
+              <button id="btnSettings" class="btn tiny secondary">⚙</button>
+              <button id="btnStats" class="btn tiny secondary">Stats</button>
+              <button id="btnSound" class="btn tiny secondary">SFX: ON</button>
+            </div>
+          </div>
+
+          <!-- TOUCH CONTROLS -->
+          <div id="touchControls">
+            <button id="btnLeft" class="circle-btn">⟵</button>
+            <button id="btnRight" class="circle-btn">⟶</button>
+            <button id="btnNitro" class="circle-btn nitro">⚡</button>
+          </div>
+
+          <!-- MENU PANEL -->
+          <div id="menuPanel" class="panel">
+            <div class="panel-inner wide">
+              <h2>Drive Mad ULTRA</h2>
+              <p class="muted">
+                Campaign có sao & unlock level, Store mua skin bằng Wallet coins, Daily Endless + Daily Challenge/Quest theo seed mỗi ngày,
+                Editor tạo custom level lưu ngay trong trình duyệt, Local Leaderboard lưu trực tiếp trên máy.
+              </p>
+
+              <div class="grid-2">
+                <div class="box">
+                  <h3>Điều khiển</h3>
+                  <ul class="panel-list">
+                    <li>Trái/Phải: A/D hoặc ⟵/⟶</li>
+                    <li>Nitro: Shift hoặc nút ⚡ (mobile)</li>
+                    <li>Pause: P • Restart: R</li>
+                    <li>Replay Best/Last để xem lại (Best có ghost)</li>
+                    <li>Fullscreen: nút ⛶</li>
+                  </ul>
+                </div>
+
+                <div class="box">
+                  <h3>Chế độ</h3>
+                  <ul class="panel-list">
+                    <li><b>PLAY (Campaign)</b>: có đích, chấm sao, unlock level tiếp theo.</li>
+                    <li><b>DAILY ENDLESS</b>: endless seed theo ngày, áp dụng Daily Modifiers + Quest + leaderboard.</li>
+                    <li><b>CUSTOM</b>: level tự tạo bằng Editor.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="menu-actions">
+                <button id="btnPlayCampaign" class="btn big">Chơi Campaign</button>
+                <button id="btnPlayDaily" class="btn big secondary">Chơi Daily Endless</button>
+                <button id="btnOpenLevels" class="btn big secondary">Chọn Level</button>
+                <button id="btnOpenStore" class="btn big secondary">Mở Store</button>
+                <button id="btnOpenEditor" class="btn big secondary">Mở Editor</button>
+              </div>
+
+              <div class="hint">
+                Store: Coins nhặt trong run sẽ cộng vào Wallet khi kết thúc run (win/lose).<br/>
+                Campaign: cần ít nhất 1★ để mở level kế tiếp.<br/>
+                Daily: xem Daily Challenge, Quest & Local Leaderboard tại Stats & Achievements → Daily.
+              </div>
+            </div>
+          </div>
+
+          <!-- LEVELS PANEL -->
+          <div id="levelPanel" class="panel hidden">
+            <div class="panel-inner wide">
+              <h2>Levels</h2>
+              <p class="muted">Campaign (Default) • Daily • Custom (Editor)</p>
+
+              <div class="tabs">
+                <button id="tabDefault" class="tab active">Campaign</button>
+                <button id="tabDaily" class="tab">Daily</button>
+                <button id="tabCustom" class="tab">Custom</button>
+              </div>
+
+              <div id="levelList" class="level-grid"></div>
+
+              <div class="row">
+                <button id="btnCloseLevels" class="btn full secondary">Đóng</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SETTINGS PANEL -->
+          <div id="settingsPanel" class="panel hidden">
+            <div class="panel-inner">
+              <h2>Cài đặt</h2>
+
+              <div class="setting-row">
+                <label for="difficultySelect">Độ khó:</label>
+                <select id="difficultySelect">
+                  <option value="easy">Dễ</option>
+                  <option value="normal" selected>Bình thường</option>
+                  <option value="hard">Khó</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label for="toggleGhost">Ghost (Best run):</label>
+                <input type="checkbox" id="toggleGhost" checked />
+              </div>
+
+              <div class="setting-row">
+                <label for="toggleEngine">Engine sound:</label>
+                <input type="checkbox" id="toggleEngine" checked />
+              </div>
+
+              <div class="setting-row">
+                <label for="toggleTilt">Tilt steering (mobile):</label>
+                <input type="checkbox" id="toggleTilt" />
+              </div>
+
+              <div class="setting-row">
+                <label for="tiltSensitivity">Tilt sensitivity:</label>
+                <input id="tiltSensitivity" type="range" min="0.5" max="3" step="0.1" value="1.2" />
+              </div>
+
+              <button id="btnCloseSettings" class="btn full secondary">Đóng</button>
+            </div>
+          </div>
+
+          <!-- STORE PANEL (Skins shop) -->
+          <div id="storePanel" class="panel hidden">
+            <div class="panel-inner wide">
+              <h2>Store (Skins)</h2>
+              <p class="muted">Mua skin bằng Wallet coins. Skin đã mua dùng vĩnh viễn.</p>
+
+              <div class="store-top">
+                <div class="store-pill">Wallet: <b><span id="storeWallet">0</span></b> coins</div>
+                <div class="store-pill">Tip: thắng campaign được bonus coins theo sao + Daily Quest thưởng thêm Wallet.</div>
+              </div>
+
+              <div id="storeGrid" class="store-grid"></div>
+
+              <div class="row">
+                <button id="btnCloseStore" class="btn secondary">Đóng</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PAUSE PANEL -->
+          <div id="pausePanel" class="panel hidden">
+            <div class="panel-inner">
+              <h2>Tạm dừng</h2>
+              <p class="muted">Nhấn P hoặc bấm “Resume”.</p>
+              <button id="btnResume" class="btn full">Resume</button>
+            </div>
+          </div>
+
+          <!-- RESULT PANEL -->
+          <div id="resultPanel" class="panel hidden">
+            <div class="panel-inner">
+              <h2 id="resultTitle"></h2>
+              <div id="starRow" class="star-row"></div>
+              <p id="resultText"></p>
+              <p id="resultExtra" class="message-extra"></p>
+              <button id="btnRetry" class="btn full">Chơi lại</button>
+              <button id="btnNext" class="btn full secondary">Level tiếp</button>
+            </div>
+          </div>
+
+          <!-- STATS PANEL -->
+          <div id="statsPanel" class="panel hidden">
+            <div class="panel-inner wide">
+              <h2>Stats, Achievements & Daily</h2>
+
+              <div class="grid-2">
+                <div class="box">
+                  <h3>Thống kê</h3>
+                  <ul class="stats-list">
+                    <li>Total runs: <span id="statsRuns">0</span></li>
+                    <li>Total distance: <span id="statsDistance">0</span> m</li>
+                    <li>Total run coins: <span id="statsCoins">0</span></li>
+                    <li>Wallet coins: <span id="statsWallet">0</span></li>
+                    <li>Total crashes: <span id="statsCrashes">0</span></li>
+                    <li>Best score: <span id="statsBestScore">0</span></li>
+                    <li>Daily best distance: <span id="statsDailyBest">0</span> m</li>
+                  </ul>
+                </div>
+
+                <div class="box">
+                  <h3>Achievements</h3>
+                  <div id="achievements" class="ach-grid"></div>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="box">
+                  <h3>Daily Challenge & Quests</h3>
+                  <div id="dailyChallengeSummary" class="daily-summary"></div>
+                  <ul id="dailyQuestList" class="quest-list"></ul>
+                  <button id="btnClaimDailyQuests" class="btn small full">
+                    Nhận thưởng nhiệm vụ hoàn thành
+                  </button>
+                </div>
+
+                <div class="box">
+                  <h3>Daily Leaderboard (Local)</h3>
+                  <div id="dailyLeaderboardInfo" class="daily-summary small"></div>
+                  <ol id="dailyLeaderboard" class="leader-list"></ol>
+                </div>
+              </div>
+
+              <div class="row">
+                <button id="btnResetData" class="btn secondary">Reset Data</button>
+                <button id="btnCloseStats" class="btn secondary">Đóng</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- EDITOR PANEL -->
+          <div id="editorPanel" class="panel hidden">
+            <div class="panel-inner wide editor">
+              <h2>Level Editor</h2>
+              <p class="muted">
+                Terrain: click thêm điểm, kéo để chỉnh, Shift+Click xóa điểm.
+                Tool Coin/Hazard/Fuel/Checkpoint/Finish: click đặt. Erase: click xóa.
+                Save để lưu vào Custom Levels.
+              </p>
+
+              <div class="editor-toolbar">
+                <div class="tool-group">
+                  <span class="tool-title">Tool:</span>
+                  <button class="tool-btn active" data-tool="terrain">Terrain</button>
+                  <button class="tool-btn" data-tool="coin">Coin</button>
+                  <button class="tool-btn" data-tool="hazard">Hazard</button>
+                  <button class="tool-btn" data-tool="fuel">Fuel</button>
+                  <button class="tool-btn" data-tool="checkpoint">Checkpoint</button>
+                  <button class="tool-btn" data-tool="finish">Finish</button>
+                  <button class="tool-btn" data-tool="erase">Erase</button>
+                </div>
+
+                <div class="tool-group">
+                  <span class="tool-title">Snap/Grid:</span>
+                  <label class="toggle"><input type="checkbox" id="editorSnap" checked /><span>Snap</span></label>
+                  <label class="toggle"><input type="checkbox" id="editorGrid" checked /><span>Grid</span></label>
+                </div>
+
+                <div class="tool-group">
+                  <button id="btnEditorNew" class="btn small secondary">New</button>
+                  <button id="btnEditorTest" class="btn small">Test</button>
+                  <button id="btnEditorSave" class="btn small">Save</button>
+                  <button id="btnEditorExport" class="btn small secondary">Export</button>
+                  <button id="btnEditorImport" class="btn small secondary">Import</button>
+                </div>
+              </div>
+
+              <div class="editor-row">
+                <div class="editor-left">
+                  <div class="field">
+                    <label>Level name</label>
+                    <input id="editorName" type="text" placeholder="My Custom Level" />
+                  </div>
+
+                  <div class="field">
+                    <label>Start X</label>
+                    <input id="editorStartX" type="number" min="0" value="80" />
+                  </div>
+
+                  <div class="field">
+                    <label>Finish X</label>
+                    <input id="editorFinishX" type="number" min="0" value="1100" />
+                  </div>
+
+                  <div class="field">
+                    <label>Par time (seconds)</label>
+                    <input id="editorParTime" type="number" min="5" value="35" />
+                  </div>
+
+                  <div class="field">
+                    <label>Hint</label>
+                    <div class="mini-hint">
+                      Terrain: click/add • drag/move • Shift+Click delete (giữ ≥ 2 điểm).<br/>
+                      Objects: click đặt • Erase: click xóa.
+                    </div>
+                  </div>
+
+                  <div class="row">
+                    <button id="btnEditorClose" class="btn full secondary">Đóng Editor</button>
+                  </div>
+                </div>
+
+                <div class="editor-right">
+                  <label class="muted">Import/Export JSON (copy/paste)</label>
+                  <textarea id="editorJson" spellcheck="false"></textarea>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <pre class="code-block">
+&lt;canvas id="gameCanvas"&gt;&lt;/canvas&gt;
+&lt;script src="game.js"&gt;&lt;/script&gt;
+        </pre>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Drive Mad ULTRA • Campaign • Store • Daily Endless + Daily Challenge/Quest • Editor • Achievements • Local Leaderboard</span>
+  </footer>
+
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
